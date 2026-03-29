@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useListDeals, useSubscribe, Deal, ListDealsSortOrder, ListDealsSortBy, ListDealsCarType } from "@workspace/api-client-react"
+import { useListDeals, useSubscribe, Deal, ListDealsSortOrder, ListDealsSortBy, ListDealsCarType, ApiError } from "@workspace/api-client-react"
 import { Navbar } from "@/components/layout/Navbar"
 import { DealCard } from "@/components/deals/DealCard"
 import { DealDetailModal } from "@/components/deals/DealDetailModal"
@@ -41,7 +41,7 @@ export default function Home() {
         toast({ title: "Subscribed!", description: "You'll be notified of new deals.", variant: "success" })
         setEmail("")
       },
-      onError: (err: any) => {
+      onError: (err: ApiError<unknown>) => {
         toast({ title: "Subscription failed", description: err.message || "Please try again.", variant: "destructive" })
       }
     }

@@ -3,14 +3,15 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useQueryClient } from "@tanstack/react-query"
-import { 
-  useListDeals, 
-  useCreateDeal, 
-  useUpdateDeal, 
+import {
+  useListDeals,
+  useCreateDeal,
+  useUpdateDeal,
   useDeleteDeal,
   getListDealsQueryKey,
   Deal,
-  CreateDealRequestCarType
+  CreateDealRequestCarType,
+  ApiError,
 } from "@workspace/api-client-react"
 
 import { Navbar } from "@/components/layout/Navbar"
@@ -20,10 +21,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { formatCurrency, formatPercent } from "@/lib/utils"
-import { Plus, Edit, Trash2, Loader2, RefreshCw } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
+import { Plus, Edit, Trash2, Loader2, RefreshCw, Lock } from "lucide-react"
 
-// Reuse the car type enum values
 const carTypes = Object.values(CreateDealRequestCarType) as [string, ...string[]]
 
 const formSchema = z.object({
@@ -37,26 +37,84 @@ const formSchema = z.object({
   termMonths: z.coerce.number().int().positive(),
   mileageLimit: z.coerce.number().int().positive(),
   region: z.string().min(1, "Region is required"),
-  imageUrl: z.string().url().optional().or(z.literal('')),
-  sourceUrl: z.string().url().optional().or(z.literal('')),
+  imageUrl: z.string().url().optional().or(z.literal("")),
+  sourceUrl: z.string().url().optional().or(z.literal("")),
   trimLevel: z.string().optional(),
   description: z.string().optional(),
 })
 
 type FormData = z.infer<typeof formSchema>
 
-export default function Admin() {
+function AdminLogin({ onUnlock }: { onUnlock: (key: string) => void }) {
+  const [inputKey, setInputKey] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inputKey.trim()) {
+      setError("Please enter the admin key.")
+      return
+    }
+    setLoading(true)
+    setError("")
+    try {
+      const res = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-key": inputKey.trim() },
+        body: JSON.stringify({}),
+      })
+      if (res.status === 401) {
+        setError("Invalid admin key. Please try again.")
+      } else {
+        onUnlock(inputKey.trim())
+      }
+    } catch {
+      setError("Connection error. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="w-full max-w-sm p-8 bg-card border border-border rounded-2xl shadow-2xl">
+        <div className="flex flex-col items-center mb-6">
+          <div className="bg-primary/20 p-3 rounded-xl mb-3">
+            <Lock className="h-6 w-6 text-primary" />
+          </div>
+          <h2 className="text-2xl font-display font-bold">Admin Access</h2>
+          <p className="text-sm text-muted-foreground mt-1 text-center">Enter your admin key to manage deals</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            type="password"
+            placeholder="Admin key"
+            value={inputKey}
+            onChange={(e) => setInputKey(e.target.value)}
+            autoFocus
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Unlock
+          </Button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AdminPanel({ adminKey }: { adminKey: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null)
 
   const { data, isLoading } = useListDeals({ limit: 100 })
 
-  const adminRequestOptions = {
-    headers: { "x-admin-key": import.meta.env.VITE_ADMIN_API_KEY ?? "" },
-  }
+  const adminRequest = { headers: { "x-admin-key": adminKey } }
 
   const createMutation = useCreateDeal({
     mutation: {
@@ -64,9 +122,12 @@ export default function Admin() {
         queryClient.invalidateQueries({ queryKey: getListDealsQueryKey() })
         toast({ title: "Deal created", variant: "success" })
         setIsDialogOpen(false)
-      }
+      },
+      onError: (err: ApiError<unknown>) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" })
+      },
     },
-    request: adminRequestOptions,
+    request: adminRequest,
   })
 
   const updateMutation = useUpdateDeal({
@@ -75,9 +136,12 @@ export default function Admin() {
         queryClient.invalidateQueries({ queryKey: getListDealsQueryKey() })
         toast({ title: "Deal updated", variant: "success" })
         setIsDialogOpen(false)
-      }
+      },
+      onError: (err: ApiError<unknown>) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" })
+      },
     },
-    request: adminRequestOptions,
+    request: adminRequest,
   })
 
   const deleteMutation = useDeleteDeal({
@@ -85,9 +149,12 @@ export default function Admin() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListDealsQueryKey() })
         toast({ title: "Deal deleted" })
-      }
+      },
+      onError: (err: ApiError<unknown>) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" })
+      },
     },
-    request: adminRequestOptions,
+    request: adminRequest,
   })
 
   const form = useForm<FormData>({
@@ -97,8 +164,8 @@ export default function Admin() {
       carType: CreateDealRequestCarType.sedan,
       msrp: 0, monthlyPayment: 0, moneyDown: 0,
       termMonths: 36, mileageLimit: 10,
-      region: "National", imageUrl: "", sourceUrl: "", trimLevel: "", description: ""
-    }
+      region: "National", imageUrl: "", sourceUrl: "", trimLevel: "", description: "",
+    },
   })
 
   const openCreate = () => {
@@ -107,7 +174,7 @@ export default function Admin() {
       make: "", model: "", year: new Date().getFullYear(),
       carType: CreateDealRequestCarType.sedan, msrp: 0, monthlyPayment: 0, moneyDown: 0,
       termMonths: 36, mileageLimit: 10, region: "National",
-      imageUrl: "", sourceUrl: "", trimLevel: "", description: ""
+      imageUrl: "", sourceUrl: "", trimLevel: "", description: "",
     })
     setIsDialogOpen(true)
   }
@@ -159,7 +226,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -185,8 +252,12 @@ export default function Admin() {
               </thead>
               <tbody className="divide-y divide-border">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></td></tr>
-                ) : data?.deals.map(deal => (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                    </td>
+                  </tr>
+                ) : data?.deals.map((deal) => (
                   <tr key={deal.id} className="hover:bg-secondary/20">
                     <td className="px-6 py-4 font-medium">
                       {deal.year} {deal.make} {deal.model} {deal.trimLevel && `(${deal.trimLevel})`}
@@ -200,7 +271,11 @@ export default function Admin() {
                       <Button variant="ghost" size="icon" onClick={() => openEdit(deal)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDelete(deal.id)}>
+                      <Button
+                        variant="ghost" size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(deal.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </td>
@@ -214,71 +289,71 @@ export default function Admin() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingDeal ? 'Edit Deal' : 'Add New Deal'}</DialogTitle>
+              <DialogTitle>{editingDeal ? "Edit Deal" : "Add New Deal"}</DialogTitle>
             </DialogHeader>
-            
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField control={form.control} name="year" render={({field}) => (
-                    <FormItem><FormLabel>Year</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="year" render={({ field }) => (
+                    <FormItem><FormLabel>Year</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="make" render={({field}) => (
-                    <FormItem><FormLabel>Make</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="make" render={({ field }) => (
+                    <FormItem><FormLabel>Make</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="model" render={({field}) => (
-                    <FormItem><FormLabel>Model</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="model" render={({ field }) => (
+                    <FormItem><FormLabel>Model</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="trimLevel" render={({field}) => (
-                    <FormItem><FormLabel>Trim (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="trimLevel" render={({ field }) => (
+                    <FormItem><FormLabel>Trim (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="carType" render={({field}) => (
+                  <FormField control={form.control} name="carType" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Body Type</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {carTypes.map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+                          {carTypes.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <FormMessage/>
+                      <FormMessage />
                     </FormItem>
                   )} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-secondary/30 rounded-xl border border-border/50">
-                  <FormField control={form.control} name="msrp" render={({field}) => (
-                    <FormItem><FormLabel>MSRP ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="msrp" render={({ field }) => (
+                    <FormItem><FormLabel>MSRP ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="monthlyPayment" render={({field}) => (
-                    <FormItem><FormLabel>Monthly Payment ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="monthlyPayment" render={({ field }) => (
+                    <FormItem><FormLabel>Monthly Payment ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="moneyDown" render={({field}) => (
-                    <FormItem><FormLabel>Money Down ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="moneyDown" render={({ field }) => (
+                    <FormItem><FormLabel>Money Down ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField control={form.control} name="termMonths" render={({field}) => (
-                    <FormItem><FormLabel>Term (Months)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="termMonths" render={({ field }) => (
+                    <FormItem><FormLabel>Term (Months)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="mileageLimit" render={({field}) => (
-                    <FormItem><FormLabel>Mileage (k/yr)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="mileageLimit" render={({ field }) => (
+                    <FormItem><FormLabel>Mileage (k/yr)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="region" render={({field}) => (
-                    <FormItem><FormLabel>Region</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="region" render={({ field }) => (
+                    <FormItem><FormLabel>Region</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
-                  <FormField control={form.control} name="imageUrl" render={({field}) => (
-                    <FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="imageUrl" render={({ field }) => (
+                    <FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="sourceUrl" render={({field}) => (
-                    <FormItem><FormLabel>Source URL (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="sourceUrl" render={({ field }) => (
+                    <FormItem><FormLabel>Source URL (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="description" render={({field}) => (
-                    <FormItem><FormLabel>Notes (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>
+                  <FormField control={form.control} name="description" render={({ field }) => (
+                    <FormItem><FormLabel>Notes (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
 
@@ -286,7 +361,7 @@ export default function Admin() {
                   <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={isPending}>
                     {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                    {editingDeal ? 'Update Deal' : 'Create Deal'}
+                    {editingDeal ? "Update Deal" : "Create Deal"}
                   </Button>
                 </div>
               </form>
@@ -296,4 +371,14 @@ export default function Admin() {
       </div>
     </div>
   )
+}
+
+export default function Admin() {
+  const [adminKey, setAdminKey] = useState<string | null>(null)
+
+  if (!adminKey) {
+    return <AdminLogin onUnlock={setAdminKey} />
+  }
+
+  return <AdminPanel adminKey={adminKey} />
 }
