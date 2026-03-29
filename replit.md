@@ -46,8 +46,9 @@ artifacts-monorepo/
 - Filter bar: brand, car type (sedan/SUV/truck/EV/etc), max monthly payment, sort by deal score
 - Deal detail modal with full lease terms
 - Email alert signup (stored in `email_subscribers` table)
-- Admin page (`/admin`) to create/edit/delete deals
+- Admin page (`/admin`) to create/edit/delete deals — hidden from public navbar, accessible by direct URL only
 - 12 seeded sample deals covering sedans, EVs, and SUVs
+- **Leasehackr Forum Scraper**: nightly auto-import of real deals via Discourse JSON API; deduplicates by `source_url`; `POST /api/admin/scrape` for on-demand sync; admin UI shows "Sync Deals" button + last-sync timestamp/results
 
 ### Deal Score Logic
 `deal_score = (monthly_payment / msrp) * 100`
@@ -77,6 +78,9 @@ All at `/api`:
 - `PUT /api/deals/:id` - Update deal (admin)
 - `DELETE /api/deals/:id` - Delete deal (admin)
 - `POST /api/subscribers` - Subscribe to alerts
+- `GET /api/admin/validate` - Validate admin key
+- `GET /api/admin/sync-status` - Last scrape timestamp + result (admin)
+- `POST /api/admin/scrape` - Trigger immediate leasehackr scrape (admin)
 
 ## TypeScript & Composite Projects
 
@@ -92,6 +96,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm --filter @workspace/api-spec run codegen` — regenerates API client + Zod schemas
 - `pnpm --filter @workspace/db run push` — push DB schema changes
 - `pnpm --filter @workspace/scripts run seed-deals` — seed sample deals
+- `pnpm --filter @workspace/scripts run scrape` — run leasehackr scraper once (standalone)
 
 ## Development
 

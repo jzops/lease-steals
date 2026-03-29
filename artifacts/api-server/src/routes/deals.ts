@@ -10,6 +10,10 @@ import {
 } from "@workspace/api-zod";
 import { eq, and, lte, ilike, desc, asc, count, sql } from "drizzle-orm";
 import { requireAdminKey } from "../middlewares/admin-auth";
+import { scrapeAndUpsert } from "../lib/scraper";
+
+let lastSyncAt: string | null = null;
+let lastSyncResult: { imported: number; skipped: number; errors: number } | null = null;
 
 const router: IRouter = Router();
 
@@ -244,6 +248,31 @@ router.delete("/deals/:id", requireAdminKey, async (req, res) => {
 
 router.get("/admin/validate", requireAdminKey, (_req, res) => {
   res.json({ ok: true });
+});
+
+router.get("/admin/sync-status", requireAdminKey, (_req, res) => {
+  res.json({ lastSyncAt, lastSyncResult });
+});
+
+router.post("/admin/scrape", requireAdminKey, async (_req, res) => {
+  try {
+    const result = await scrapeAndUpsert();
+    lastSyncAt = new Date().toISOString();
+    lastSyncResult = {
+      imported: result.imported,
+      skipped: result.skipped,
+      errors: result.errors.length,
+    };
+    res.json({
+      imported: result.imported,
+      skipped: result.skipped,
+      errors: result.errors,
+      syncedAt: lastSyncAt,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "scrape_failed", message: msg });
+  }
 });
 
 export default router;

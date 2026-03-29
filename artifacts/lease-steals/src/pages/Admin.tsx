@@ -22,7 +22,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { Plus, Edit, Trash2, Loader2, RefreshCw, Lock } from "lucide-react"
+import { Plus, Edit, Trash2, Loader2, RefreshCw, Lock, Zap, CheckCircle2, AlertCircle } from "lucide-react"
 
 const carTypes = Object.values(CreateDealRequestCarType) as [string, ...string[]]
 
@@ -106,12 +106,59 @@ function AdminLogin({ onUnlock }: { onUnlock: (key: string) => void }) {
   )
 }
 
+interface SyncStatus {
+  lastSyncAt: string | null
+  lastSyncResult: { imported: number; skipped: number; errors: number } | null
+}
+
+interface ScrapeResult {
+  imported: number
+  skipped: number
+  errors: string[]
+  syncedAt: string
+}
+
 function AdminPanel({ adminKey }: { adminKey: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null)
+  const [lastSyncResult, setLastSyncResult] = useState<ScrapeResult | null>(null)
+
+  useEffect(() => {
+    fetch("/api/admin/sync-status", { headers: { "x-admin-key": adminKey } })
+      .then((r) => r.json())
+      .then((d: SyncStatus) => setSyncStatus(d))
+      .catch(() => {})
+  }, [adminKey])
+
+  const handleSync = async () => {
+    setIsSyncing(true)
+    setLastSyncResult(null)
+    try {
+      const res = await fetch("/api/admin/scrape", {
+        method: "POST",
+        headers: { "x-admin-key": adminKey },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Unknown error" }))
+        toast({ title: "Sync failed", description: (err as { message?: string }).message ?? "Unknown error", variant: "destructive" })
+        return
+      }
+      const data: ScrapeResult = await res.json()
+      setLastSyncResult(data)
+      setSyncStatus({ lastSyncAt: data.syncedAt, lastSyncResult: { imported: data.imported, skipped: data.skipped, errors: data.errors.length } })
+      queryClient.invalidateQueries({ queryKey: getListDealsQueryKey() })
+      toast({ title: `Sync complete — ${data.imported} new deal${data.imported === 1 ? "" : "s"} imported`, variant: "success" })
+    } catch {
+      toast({ title: "Sync error", description: "Network error during scrape", variant: "destructive" })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   const { data, isLoading } = useListDeals({ limit: 100 })
 
@@ -237,6 +284,50 @@ function AdminPanel({ adminKey }: { adminKey: string }) {
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" /> Add New Deal
           </Button>
+        </div>
+
+        <div className="bg-card rounded-2xl border shadow-lg p-5 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="bg-primary/15 p-2.5 rounded-xl">
+                <Zap className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Sync from Leasehackr Forum</p>
+                <p className="text-xs text-muted-foreground">
+                  {syncStatus?.lastSyncAt
+                    ? `Last synced ${new Date(syncStatus.lastSyncAt).toLocaleString()} · ${syncStatus.lastSyncResult?.imported ?? 0} imported, ${syncStatus.lastSyncResult?.skipped ?? 0} skipped`
+                    : "Never synced — runs nightly at midnight ET"}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleSync}
+              disabled={isSyncing}
+              variant="outline"
+              className="gap-2 min-w-[140px]"
+            >
+              {isSyncing
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Syncing…</>
+                : <><RefreshCw className="h-4 w-4" /> Sync Deals</>}
+            </Button>
+          </div>
+
+          {lastSyncResult && (
+            <div className="mt-4 pt-4 border-t border-border/50 flex flex-wrap gap-4 text-sm">
+              <span className="flex items-center gap-1.5 text-green-400 font-medium">
+                <CheckCircle2 className="h-4 w-4" />
+                {lastSyncResult.imported} imported
+              </span>
+              <span className="text-muted-foreground">{lastSyncResult.skipped} skipped</span>
+              {lastSyncResult.errors.length > 0 && (
+                <span className="flex items-center gap-1.5 text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  {lastSyncResult.errors.length} error{lastSyncResult.errors.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-card rounded-2xl border shadow-lg overflow-hidden">

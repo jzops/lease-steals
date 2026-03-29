@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { scrapeAndUpsert } from "./lib/scraper";
+import cron from "node-cron";
 
 const rawPort = process.env["PORT"];
 
@@ -23,3 +25,23 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+cron.schedule(
+  "0 0 * * *",
+  async () => {
+    logger.info("[scraper] Starting nightly leasehackr sync...");
+    try {
+      const result = await scrapeAndUpsert();
+      logger.info(
+        { imported: result.imported, skipped: result.skipped, errors: result.errors.length },
+        "[scraper] Nightly sync complete"
+      );
+      if (result.errors.length > 0) {
+        result.errors.forEach((e) => logger.warn(`[scraper] ${e}`));
+      }
+    } catch (err) {
+      logger.error({ err }, "[scraper] Nightly sync failed");
+    }
+  },
+  { timezone: "America/New_York" }
+);
