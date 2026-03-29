@@ -41,17 +41,9 @@ export default function Home() {
     sortOrder: filters.sortBy === "created_at" ? ListDealsSortOrder.desc : ListDealsSortOrder.asc,
   })
 
-  // Deep-link: restore deal + trade-in from URL params
+  // Restore trade-in from URL on first load (independent of deals)
   useEffect(() => {
-    if (!data?.deals?.length) return
     const params = new URLSearchParams(window.location.search)
-
-    const dealId = params.get("deal")
-    if (dealId) {
-      const found = data.deals.find((d) => String(d.id) === dealId)
-      if (found) setSelectedDeal(found)
-    }
-
     const vin = params.get("vin")
     const mv = parseFloat(params.get("mv") ?? "0")
     const po = parseFloat(params.get("po") ?? "0")
@@ -65,6 +57,16 @@ export default function Home() {
       setTradeIn({ vin, year, make, model, trim: "", marketValue: mv, payoffAmount: po })
       setTradeInMode(true)
     }
+  }, [])
+
+  // Deep-link: open deal modal from ?deal=<id>
+  useEffect(() => {
+    if (!data?.deals?.length) return
+    const params = new URLSearchParams(window.location.search)
+    const dealId = params.get("deal")
+    if (!dealId) return
+    const found = data.deals.find((d) => String(d.id) === dealId)
+    if (found) setSelectedDeal(found)
   }, [data])
 
   // Sync trade-in info to URL for shareability
