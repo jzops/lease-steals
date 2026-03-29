@@ -3,23 +3,38 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Deal } from "@workspace/api-client-react"
 import { formatCurrency } from "@/lib/utils"
-import { Zap, Calendar, MapPin, Gauge, Tag, ExternalLink, Share2 } from "lucide-react"
+import { Zap, Calendar, MapPin, Gauge, Tag, ExternalLink, Share2, TrendingDown, TrendingUp, Car } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { TradeInInfo } from "./TradeInPanel"
 
 interface DealDetailModalProps {
   deal: Deal | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  tradeIn?: TradeInInfo | null
 }
 
-export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalProps) {
+export function DealDetailModal({ deal, open, onOpenChange, tradeIn }: DealDetailModalProps) {
   const { toast } = useToast()
 
   if (!deal) return null
 
+  const equity = tradeIn ? tradeIn.marketValue - tradeIn.payoffAmount : 0
+  const monthlyEquityImpact = tradeIn && deal.termMonths > 0 ? equity / deal.termMonths : 0
+  const effectiveMonthly = deal.monthlyPayment - monthlyEquityImpact
+  const showTradeIn = !!tradeIn && tradeIn.marketValue > 0
+
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}?deal=${deal.id}`
-    const text = `Check out this ${deal.year} ${deal.make} ${deal.model} lease deal — only ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}! 🔥 via LeaseSteals`
+    const base = `${window.location.origin}${import.meta.env.BASE_URL}`
+    const params = new URLSearchParams({ deal: String(deal.id) })
+    if (tradeIn) {
+      params.set("vin", tradeIn.vin)
+      params.set("mv", String(tradeIn.marketValue))
+      params.set("po", String(tradeIn.payoffAmount))
+      params.set("tveh", `${tradeIn.year} ${tradeIn.make} ${tradeIn.model}`)
+    }
+    const shareUrl = `${base}?${params.toString()}`
+    const text = `Check out this ${deal.year} ${deal.make} ${deal.model} lease — only ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}!${showTradeIn ? ` Effective ${formatCurrency(Math.round(effectiveMonthly))}/mo with my ${tradeIn!.year} ${tradeIn!.make} ${tradeIn!.model} trade-in.` : ""} 🔥 via LeaseSteals`
     if (navigator.share) {
       try {
         await navigator.share({ title: `${deal.year} ${deal.make} ${deal.model} Lease Deal`, text, url: shareUrl })
@@ -35,14 +50,19 @@ export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalPro
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl p-0 overflow-hidden bg-background border-border">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{deal.year} {deal.make} {deal.model} Lease Deal</DialogTitle>
+          <DialogDescription>Lease deal details for {deal.year} {deal.make} {deal.model}</DialogDescription>
+        </DialogHeader>
+
         <div className="relative h-64 w-full bg-secondary">
-          <img 
-            src={deal.imageUrl || `${import.meta.env.BASE_URL}images/car-placeholder.png`} 
+          <img
+            src={deal.imageUrl || `${import.meta.env.BASE_URL}images/car-placeholder.png`}
             alt={`${deal.make} ${deal.model}`}
             className="w-full h-full object-cover opacity-80"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-          
+
           <div className="absolute bottom-6 left-6 right-6">
             {deal.isSignAndDrive && (
               <Badge className="bg-primary text-primary-foreground border-none font-bold px-3 py-1 shadow-lg mb-3 flex items-center gap-1 w-fit">
@@ -53,38 +73,91 @@ export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalPro
               {deal.year} {deal.make} {deal.model}
             </h2>
             <p className="text-muted-foreground font-medium">
-              {deal.trimLevel ? `Trim: ${deal.trimLevel} • ` : ''}{deal.carType.toUpperCase()}
+              {deal.trimLevel ? `Trim: ${deal.trimLevel} • ` : ""}{deal.carType.toUpperCase()}
             </p>
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 pb-6 border-b border-border/50">
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 pb-6 border-b border-border/50">
             <div>
-              <div className="text-sm font-semibold text-muted-foreground mb-1 uppercase tracking-wider">The Deal</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-display font-bold text-foreground">
-                  {formatCurrency(deal.monthlyPayment)}
-                </span>
-                <span className="text-muted-foreground font-medium">/month</span>
+              <div className="text-sm font-semibold text-muted-foreground mb-1 uppercase tracking-wider">
+                {showTradeIn ? "With Your Trade-In" : "The Deal"}
               </div>
-              <p className="font-semibold mt-1">
-                {deal.moneyDown === 0 ? (
-                  <span className="text-primary flex items-center gap-1"><Zap className="h-4 w-4" /> $0 Due at Signing</span>
-                ) : (
-                  <span>{formatCurrency(deal.moneyDown)} Due at Signing</span>
-                )}
-              </p>
+
+              {showTradeIn ? (
+                <div>
+                  <div className="flex items-baseline gap-1 opacity-50 mb-1">
+                    <span className="text-xl font-display font-bold line-through text-muted-foreground">
+                      {formatCurrency(deal.monthlyPayment)}
+                    </span>
+                    <span className="text-muted-foreground text-xs">/mo list</span>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-display font-bold text-foreground">
+                      {formatCurrency(Math.round(effectiveMonthly))}
+                    </span>
+                    <span className="text-muted-foreground font-medium">/month effective</span>
+                  </div>
+                  <div className={`flex items-center gap-1 text-sm font-semibold mt-1.5 ${monthlyEquityImpact > 0 ? "text-green-400" : "text-red-400"}`}>
+                    {monthlyEquityImpact > 0
+                      ? <><TrendingDown className="h-4 w-4" /> saves {formatCurrency(Math.round(monthlyEquityImpact))}/mo via trade-in equity</>
+                      : <><TrendingUp className="h-4 w-4" /> +{formatCurrency(Math.round(Math.abs(monthlyEquityImpact)))}/mo (negative equity rolled in)</>
+                    }
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-display font-bold text-foreground">
+                      {formatCurrency(deal.monthlyPayment)}
+                    </span>
+                    <span className="text-muted-foreground font-medium">/month</span>
+                  </div>
+                  <p className="font-semibold mt-1">
+                    {deal.moneyDown === 0 ? (
+                      <span className="text-primary flex items-center gap-1"><Zap className="h-4 w-4" /> $0 Due at Signing</span>
+                    ) : (
+                      <span>{formatCurrency(deal.moneyDown)} Due at Signing</span>
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
-            
+
             <div className="bg-secondary rounded-xl p-4 min-w-[140px] text-center border border-border/50 shadow-inner">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Deal Score</div>
-              <div className={`text-2xl font-bold ${deal.dealScore < 0.75 ? 'text-primary' : deal.dealScore < 1.0 ? 'text-yellow-400' : 'text-red-400'}`}>
+              <div className={`text-2xl font-bold ${deal.dealScore < 0.75 ? "text-primary" : deal.dealScore < 1.0 ? "text-yellow-400" : "text-red-400"}`}>
                 {deal.dealScore.toFixed(2)}%
               </div>
               <div className="text-[10px] text-muted-foreground mt-1">Monthly % of MSRP</div>
             </div>
           </div>
+
+          {showTradeIn && (
+            <div className="mb-6 p-4 rounded-xl bg-secondary/50 border border-primary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Car className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Trade-In: {tradeIn!.year} {tradeIn!.make} {tradeIn!.model}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">Market Value</div>
+                  <div className="font-bold">{formatCurrency(tradeIn!.marketValue)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">Payoff Owed</div>
+                  <div className="font-bold">{formatCurrency(tradeIn!.payoffAmount)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">Net Equity</div>
+                  <div className={`font-bold ${equity >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {equity >= 0 ? "+" : ""}{formatCurrency(equity)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             <div className="flex flex-col gap-2">
@@ -133,7 +206,7 @@ export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalPro
               </Button>
             )}
             <Button variant="outline" size="lg" onClick={handleShare} className="gap-2">
-              <Share2 className="h-4 w-4" /> Share
+              <Share2 className="h-4 w-4" /> {showTradeIn ? "Share w/ Trade-In" : "Share"}
             </Button>
           </div>
         </div>

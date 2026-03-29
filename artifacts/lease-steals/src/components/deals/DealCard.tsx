@@ -1,4 +1,4 @@
-import { Share, Zap, Tag, Car, MapPin, ExternalLink } from "lucide-react"
+import { Share, Zap, Tag, Car, MapPin, ExternalLink, TrendingDown, TrendingUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -6,24 +6,39 @@ import { Deal } from "@workspace/api-client-react"
 import { formatCurrency, cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { motion } from "framer-motion"
+import { TradeInInfo } from "./TradeInPanel"
 
 interface DealCardProps {
   deal: Deal
   onClick: (deal: Deal) => void
+  tradeIn?: TradeInInfo | null
 }
 
-export function DealCard({ deal, onClick }: DealCardProps) {
+export function DealCard({ deal, onClick, tradeIn }: DealCardProps) {
   const { toast } = useToast()
-  
+
   const score = deal.dealScore
   let scoreVariant: "default" | "destructive" | "warning" = "default"
   if (score > 1.0) scoreVariant = "destructive"
   else if (score > 0.75) scoreVariant = "warning"
 
+  const equity = tradeIn ? tradeIn.marketValue - tradeIn.payoffAmount : 0
+  const monthlyEquityImpact = tradeIn && deal.termMonths > 0 ? equity / deal.termMonths : 0
+  const effectiveMonthly = deal.monthlyPayment - monthlyEquityImpact
+  const showTradeIn = !!tradeIn && tradeIn.marketValue > 0
+
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}?deal=${deal.id}`
-    const shareText = `Check out this ${deal.year} ${deal.make} ${deal.model} lease — ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}! 🔥`
+    const base = `${window.location.origin}${import.meta.env.BASE_URL}`
+    const params = new URLSearchParams({ deal: String(deal.id) })
+    if (tradeIn) {
+      params.set("vin", tradeIn.vin)
+      params.set("mv", String(tradeIn.marketValue))
+      params.set("po", String(tradeIn.payoffAmount))
+      params.set("tveh", `${tradeIn.year} ${tradeIn.make} ${tradeIn.model}`)
+    }
+    const shareUrl = `${base}?${params.toString()}`
+    const shareText = `Check out this ${deal.year} ${deal.make} ${deal.model} lease — ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}!${showTradeIn ? ` (Effective ${formatCurrency(Math.round(effectiveMonthly))}/mo with trade-in)` : ""} 🔥`
     if (navigator.share) {
       try {
         await navigator.share({ title: `${deal.year} ${deal.make} ${deal.model} Lease Deal`, text: shareText, url: shareUrl })
@@ -44,18 +59,18 @@ export function DealCard({ deal, onClick }: DealCardProps) {
       transition={{ duration: 0.3 }}
       className="h-full"
     >
-      <Card 
+      <Card
         onClick={() => onClick(deal)}
         className={cn(
           "group h-full cursor-pointer transition-all duration-300 flex flex-col",
-          deal.isSignAndDrive 
-            ? "border-primary/40 shadow-[0_0_20px_hsl(142_71%_45%_/_0.1)] hover:shadow-[0_0_30px_hsl(142_71%_45%_/_0.2)]" 
+          deal.isSignAndDrive
+            ? "border-primary/40 shadow-[0_0_20px_hsl(142_71%_45%_/_0.1)] hover:shadow-[0_0_30px_hsl(142_71%_45%_/_0.2)]"
             : "hover:border-primary/30 hover:shadow-xl"
         )}
       >
         <div className="relative aspect-[16/9] w-full bg-secondary overflow-hidden">
-          <img 
-            src={deal.imageUrl || `${import.meta.env.BASE_URL}images/car-placeholder.png`} 
+          <img
+            src={deal.imageUrl || `${import.meta.env.BASE_URL}images/car-placeholder.png`}
             alt={`${deal.make} ${deal.model}`}
             className="object-cover w-full h-full opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
           />
@@ -66,7 +81,7 @@ export function DealCard({ deal, onClick }: DealCardProps) {
               </Badge>
             </div>
           )}
-          <button 
+          <button
             onClick={handleShare}
             className="absolute top-3 right-3 bg-black/50 hover:bg-black/80 backdrop-blur-md p-2 rounded-full text-white transition-colors"
           >
@@ -84,7 +99,7 @@ export function DealCard({ deal, onClick }: DealCardProps) {
                 {deal.make} {deal.model}
               </h3>
               <p className="text-sm text-muted-foreground mt-0.5">
-                {deal.year} {deal.trimLevel ? `· ${deal.trimLevel}` : ''}
+                {deal.year} {deal.trimLevel ? `· ${deal.trimLevel}` : ""}
               </p>
             </div>
             <Badge variant={scoreVariant} className="flex-shrink-0 text-sm">
@@ -92,16 +107,44 @@ export function DealCard({ deal, onClick }: DealCardProps) {
             </Badge>
           </div>
 
-          <div className="mt-4 mb-6">
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-display font-bold text-foreground">
-                {formatCurrency(deal.monthlyPayment)}
-              </span>
-              <span className="text-muted-foreground text-sm font-medium">/mo</span>
-            </div>
-            <p className="text-sm font-medium text-foreground mt-1">
-              {formatCurrency(deal.moneyDown)} Due at Signing
-            </p>
+          <div className="mt-4 mb-4">
+            {showTradeIn ? (
+              <div>
+                <div className="flex items-baseline gap-1 opacity-50 mb-0.5">
+                  <span className="text-xl font-display font-bold line-through text-muted-foreground">
+                    {formatCurrency(deal.monthlyPayment)}
+                  </span>
+                  <span className="text-muted-foreground text-xs">/mo list</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-display font-bold text-foreground">
+                    {formatCurrency(Math.round(effectiveMonthly))}
+                  </span>
+                  <span className="text-muted-foreground text-sm font-medium">/mo effective</span>
+                </div>
+                <div className={cn(
+                  "flex items-center gap-1 text-xs font-semibold mt-1",
+                  monthlyEquityImpact > 0 ? "text-green-400" : "text-red-400"
+                )}>
+                  {monthlyEquityImpact > 0
+                    ? <><TrendingDown className="h-3 w-3" /> saves {formatCurrency(Math.round(monthlyEquityImpact))}/mo with your trade-in</>
+                    : <><TrendingUp className="h-3 w-3" /> +{formatCurrency(Math.round(Math.abs(monthlyEquityImpact)))}/mo (negative equity)</>
+                  }
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-display font-bold text-foreground">
+                    {formatCurrency(deal.monthlyPayment)}
+                  </span>
+                  <span className="text-muted-foreground text-sm font-medium">/mo</span>
+                </div>
+                <p className="text-sm font-medium text-foreground mt-1">
+                  {formatCurrency(deal.moneyDown)} Due at Signing
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-6 flex-1 content-start">
