@@ -15,6 +15,11 @@ import { scrapeAndUpsert } from "../lib/scraper";
 let lastSyncAt: string | null = null;
 let lastSyncResult: { imported: number; skipped: number; errors: number } | null = null;
 
+export function updateSyncStatus(result: { imported: number; skipped: number; errors: number }) {
+  lastSyncAt = new Date().toISOString();
+  lastSyncResult = result;
+}
+
 const router: IRouter = Router();
 
 function computeDealScore(monthlyPayment: string | number, msrp: string | number): number {
@@ -257,12 +262,7 @@ router.get("/admin/sync-status", requireAdminKey, (_req, res) => {
 router.post("/admin/scrape", requireAdminKey, async (_req, res) => {
   try {
     const result = await scrapeAndUpsert();
-    lastSyncAt = new Date().toISOString();
-    lastSyncResult = {
-      imported: result.imported,
-      skipped: result.skipped,
-      errors: result.errors.length,
-    };
+    updateSyncStatus({ imported: result.imported, skipped: result.skipped, errors: result.errors.length });
     res.json({
       imported: result.imported,
       skipped: result.skipped,

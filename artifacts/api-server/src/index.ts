@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { scrapeAndUpsert } from "./lib/scraper";
+import { updateSyncStatus } from "./routes/deals";
 import cron from "node-cron";
 
 const rawPort = process.env["PORT"];
@@ -32,6 +33,7 @@ cron.schedule(
     logger.info("[scraper] Starting nightly leasehackr sync...");
     try {
       const result = await scrapeAndUpsert();
+      updateSyncStatus({ imported: result.imported, skipped: result.skipped, errors: result.errors.length });
       logger.info(
         { imported: result.imported, skipped: result.skipped, errors: result.errors.length },
         "[scraper] Nightly sync complete"
