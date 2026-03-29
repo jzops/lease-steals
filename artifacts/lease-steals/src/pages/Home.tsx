@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useListDeals, useSubscribe, Deal, ListDealsSortOrder, ListDealsSortBy, ListDealsCarType, ApiError } from "@workspace/api-client-react"
 import { Navbar } from "@/components/layout/Navbar"
 import { DealCard } from "@/components/deals/DealCard"
@@ -33,6 +33,16 @@ export default function Home() {
     sortBy: (filters.sortBy as ListDealsSortBy) || ListDealsSortBy.deal_score,
     sortOrder: filters.sortBy === "created_at" ? ListDealsSortOrder.desc : ListDealsSortOrder.asc,
   })
+
+  // Deep-link: open deal modal from ?deal=<id> query param
+  useEffect(() => {
+    if (!data?.deals?.length) return
+    const params = new URLSearchParams(window.location.search)
+    const dealId = params.get("deal")
+    if (!dealId) return
+    const found = data.deals.find((d) => String(d.id) === dealId)
+    if (found) setSelectedDeal(found)
+  }, [data])
 
   // Subscribe Mutation
   const subscribeMutation = useSubscribe({

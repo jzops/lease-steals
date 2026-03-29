@@ -242,4 +242,8 @@ router.delete("/deals/:id", requireAdminKey, async (req, res) => {
   res.status(204).send();
 });
 
+router.get("/admin/validate", requireAdminKey, (_req, res) => {
+  res.json({ ok: true });
+});
+
 export default router;

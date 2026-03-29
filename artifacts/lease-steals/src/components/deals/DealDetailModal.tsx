@@ -18,15 +18,16 @@ export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalPro
   if (!deal) return null
 
   const handleShare = async () => {
+    const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}?deal=${deal.id}`
     const text = `Check out this ${deal.year} ${deal.make} ${deal.model} lease deal — only ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}! 🔥 via LeaseSteals`
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${deal.year} ${deal.make} ${deal.model} Lease Deal`, text, url: window.location.href })
+        await navigator.share({ title: `${deal.year} ${deal.make} ${deal.model} Lease Deal`, text, url: shareUrl })
       } catch {
         // user cancelled
       }
     } else {
-      await navigator.clipboard.writeText(`${text}\n${window.location.href}`)
+      await navigator.clipboard.writeText(shareUrl)
       toast({ description: "Deal link copied to clipboard!" })
     }
   }

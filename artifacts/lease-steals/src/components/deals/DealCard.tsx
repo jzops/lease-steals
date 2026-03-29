@@ -20,14 +20,20 @@ export function DealCard({ deal, onClick }: DealCardProps) {
   if (score > 1.0) scoreVariant = "destructive"
   else if (score > 0.75) scoreVariant = "warning"
 
-  const handleShare = (e: React.MouseEvent) => {
+  const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    navigator.clipboard.writeText(window.location.origin + `?deal=${deal.id}`)
-    toast({
-      title: "Link Copied!",
-      description: "Deal link copied to clipboard.",
-      variant: "success"
-    })
+    const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}?deal=${deal.id}`
+    const shareText = `Check out this ${deal.year} ${deal.make} ${deal.model} lease — ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}! 🔥`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${deal.year} ${deal.make} ${deal.model} Lease Deal`, text: shareText, url: shareUrl })
+      } catch {
+        // user cancelled
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl)
+      toast({ title: "Link Copied!", description: "Deal link copied to clipboard.", variant: "success" })
+    }
   }
 
   return (

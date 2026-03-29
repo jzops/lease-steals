@@ -59,15 +59,16 @@ function AdminLogin({ onUnlock }: { onUnlock: (key: string) => void }) {
     setLoading(true)
     setError("")
     try {
-      const res = await fetch("/api/deals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-key": inputKey.trim() },
-        body: JSON.stringify({}),
+      const res = await fetch("/api/admin/validate", {
+        method: "GET",
+        headers: { "x-admin-key": inputKey.trim() },
       })
-      if (res.status === 401) {
+      if (res.ok) {
+        onUnlock(inputKey.trim())
+      } else if (res.status === 401) {
         setError("Invalid admin key. Please try again.")
       } else {
-        onUnlock(inputKey.trim())
+        setError("Unexpected error. Please try again.")
       }
     } catch {
       setError("Connection error. Please try again.")
