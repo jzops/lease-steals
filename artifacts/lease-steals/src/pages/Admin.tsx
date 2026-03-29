@@ -164,7 +164,7 @@ function AdminPanel({ adminKey }: { adminKey: string }) {
       make: "", model: "", year: new Date().getFullYear(),
       carType: CreateDealRequestCarType.sedan,
       msrp: 0, monthlyPayment: 0, moneyDown: 0,
-      termMonths: 36, mileageLimit: 10,
+      termMonths: 36, mileageLimit: 10000,
       region: "National", imageUrl: "", sourceUrl: "", trimLevel: "", description: "",
     },
   })
@@ -174,7 +174,7 @@ function AdminPanel({ adminKey }: { adminKey: string }) {
     form.reset({
       make: "", model: "", year: new Date().getFullYear(),
       carType: CreateDealRequestCarType.sedan, msrp: 0, monthlyPayment: 0, moneyDown: 0,
-      termMonths: 36, mileageLimit: 10, region: "National",
+      termMonths: 36, mileageLimit: 10000, region: "National",
       imageUrl: "", sourceUrl: "", trimLevel: "", description: "",
     })
     setIsDialogOpen(true)
@@ -339,7 +339,7 @@ function AdminPanel({ adminKey }: { adminKey: string }) {
                     <FormItem><FormLabel>Term (Months)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="mileageLimit" render={({ field }) => (
-                    <FormItem><FormLabel>Mileage (k/yr)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel>Mileage (mi/yr)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="region" render={({ field }) => (
                     <FormItem><FormLabel>Region</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
