@@ -1,0 +1,26 @@
+packages:
+  "framer-motion": "For premium card hover effects, list entry animations, and shared layout transitions"
+  "@radix-ui/react-slot": "Required for shadcn ui components"
+  "@radix-ui/react-dialog": "Required for deal detail modals and admin edit dialogs"
+  "@radix-ui/react-select": "Required for filtering deals"
+  "@radix-ui/react-label": "Required for accessible forms"
+  "@radix-ui/react-toast": "Required for toast notifications"
+  "class-variance-authority": "Required for shadcn ui component variants"
+  "clsx": "Required for tailwind class merging"
+  "tailwind-merge": "Required for tailwind class merging"
+  "lucide-react": "For beautiful consistent icons across the UI"
+  "date-fns": "For formatting deal expiration dates and creation dates"
+  "react-hook-form": "For robust admin deal creation and email subscription forms"
+  "@hookform/resolvers": "For Zod validation integration with react-hook-form"
+
+images:
+  - path: "artifacts/lease-steals/public/images/hero-bg.png"
+    description: "Abstract dark background with subtle neon green light streaks and motion blur, resembling speed and futuristic technology, high contrast, minimalist, dark mode"
+    aspect_ratio: "16:9"
+  - path: "artifacts/lease-steals/public/images/car-placeholder.png"
+    description: "Sleek modern sports sedan silhouette in dark studio lighting, rim lighting, mysterious and premium"
+    aspect_ratio: "16:9"
+
+notes:
+  - Use generated hooks from @workspace/api-client-react for data fetching.
+  - The API exposes endpoints on /api/deals and /api/subscribers.

@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: LeaseSteals API - US car lease deal tracker
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: deals
+    description: Lease deal operations
+  - name: subscribers
+    description: Email subscription operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,195 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /deals:
+    get:
+      operationId: listDeals
+      tags: [deals]
+      summary: List lease deals
+      description: Returns paginated list of lease deals with optional filters
+      parameters:
+        - name: brand
+          in: query
+          schema:
+            type: string
+          description: Filter by car brand/make
+        - name: carType
+          in: query
+          schema:
+            type: string
+            enum: [sedan, suv, truck, ev, coupe, hatchback, van]
+          description: Filter by car type
+        - name: maxMonthly
+          in: query
+          schema:
+            type: number
+          description: Maximum monthly payment filter
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [deal_score, monthly_payment, msrp, created_at]
+            default: deal_score
+          description: Sort field
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort order
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: List of deals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealsListResponse"
+
+    post:
+      operationId: createDeal
+      tags: [deals]
+      summary: Create a new lease deal (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDealRequest"
+      responses:
+        "201":
+          description: Deal created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deal"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /deals/{id}:
+    get:
+      operationId: getDeal
+      tags: [deals]
+      summary: Get a single lease deal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deal details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deal"
+        "404":
+          description: Deal not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      operationId: updateDeal
+      tags: [deals]
+      summary: Update a lease deal (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDealRequest"
+      responses:
+        "200":
+          description: Deal updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deal"
+        "404":
+          description: Deal not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteDeal
+      tags: [deals]
+      summary: Delete a lease deal (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deal deleted
+        "404":
+          description: Deal not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscribers:
+    post:
+      operationId: subscribe
+      tags: [subscribers]
+      summary: Subscribe to deal alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "201":
+          description: Subscribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already subscribed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +227,228 @@ components:
       required:
         - status
 
+    Deal:
+      type: object
+      properties:
+        id:
+          type: integer
+        make:
+          type: string
+          description: Car manufacturer (e.g. Toyota)
+        model:
+          type: string
+          description: Car model (e.g. Camry)
+        year:
+          type: integer
+        carType:
+          type: string
+          enum: [sedan, suv, truck, ev, coupe, hatchback, van]
+        msrp:
+          type: number
+          description: MSRP in dollars
+        monthlyPayment:
+          type: number
+          description: Monthly payment in dollars
+        moneyDown:
+          type: number
+          description: Money due at signing (should be 0 for sign and drive)
+        termMonths:
+          type: integer
+          description: Lease term in months
+        mileageLimit:
+          type: integer
+          description: Annual mileage limit
+        dealScore:
+          type: number
+          description: Monthly payment as percentage of MSRP (lower is better)
+        isSignAndDrive:
+          type: boolean
+          description: True if $0 down and deal score < 1.0
+        region:
+          type: string
+          description: US region where deal is available (e.g. "National", "SoCal")
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          nullable: true
+        trimLevel:
+          type: string
+          nullable: true
+          description: Trim level (e.g. LE, XLE, Sport)
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - make
+        - model
+        - year
+        - carType
+        - msrp
+        - monthlyPayment
+        - moneyDown
+        - termMonths
+        - mileageLimit
+        - dealScore
+        - isSignAndDrive
+        - region
+        - createdAt
+        - updatedAt
+
+    DealsListResponse:
+      type: object
+      properties:
+        deals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Deal"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - deals
+        - total
+        - page
+        - limit
+        - totalPages
+
+    CreateDealRequest:
+      type: object
+      properties:
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: integer
+        carType:
+          type: string
+          enum: [sedan, suv, truck, ev, coupe, hatchback, van]
+        msrp:
+          type: number
+        monthlyPayment:
+          type: number
+        moneyDown:
+          type: number
+          default: 0
+        termMonths:
+          type: integer
+        mileageLimit:
+          type: integer
+        region:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          nullable: true
+        trimLevel:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+      required:
+        - make
+        - model
+        - year
+        - carType
+        - msrp
+        - monthlyPayment
+        - termMonths
+        - mileageLimit
+        - region
+
+    UpdateDealRequest:
+      type: object
+      properties:
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: integer
+        carType:
+          type: string
+          enum: [sedan, suv, truck, ev, coupe, hatchback, van]
+        msrp:
+          type: number
+        monthlyPayment:
+          type: number
+        moneyDown:
+          type: number
+        termMonths:
+          type: integer
+        mileageLimit:
+          type: integer
+        region:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        sourceUrl:
+          type: string
+          nullable: true
+        trimLevel:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+    SubscribeRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+
+    SubscribeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        email:
+          type: string
+      required:
+        - message
+        - email
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message

@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript. Contains **LeaseSteals** — a US car lease deal tracker website that surfaces the best "sign and drive" deals ($0 down, <1% MSRP per month).
 
 ## Stack
 
@@ -15,82 +15,85 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite, TailwindCSS v4, Framer Motion, shadcn/ui
+- **UI**: Dark mode, green accent theme
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+├── artifacts/
+│   ├── api-server/         # Express API server
+│   └── lease-steals/       # LeaseSteals React + Vite frontend (served at /)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+│   └── src/seed-deals.ts   # Seeds 12 sample lease deals
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
+
+## LeaseSteals App
+
+### Features
+- Homepage hero with "Find Your Next Sign & Drive Lease" headline
+- Deal card grid with deal score badges (% of MSRP), Sign & Drive badges, share buttons
+- Filter bar: brand, car type (sedan/SUV/truck/EV/etc), max monthly payment, sort by deal score
+- Deal detail modal with full lease terms
+- Email alert signup (stored in `email_subscribers` table)
+- Admin page (`/admin`) to create/edit/delete deals
+- 12 seeded sample deals covering sedans, EVs, and SUVs
+
+### Deal Score Logic
+`deal_score = (monthly_payment / msrp) * 100`
+- < 0.75%: 🔥 Excellent (green badge)
+- 0.75–1.0%: Good (yellow badge)  
+- > 1.0%: Over budget (orange/red badge)
+- `isSignAndDrive = true` when `money_down === 0 AND deal_score < 1.0`
+
+## Database Schema
+
+### `lease_deals`
+- id, make, model, year, car_type, msrp, monthly_payment, money_down
+- term_months, mileage_limit, region, expires_at
+- image_url, source_url, trim_level, description
+- created_at, updated_at
+
+### `email_subscribers`
+- id, email (unique), created_at
+
+## API Endpoints
+
+All at `/api`:
+- `GET /api/healthz` - Health check
+- `GET /api/deals` - List deals (filters: brand, carType, maxMonthly; sort: deal_score/monthly_payment/created_at)
+- `GET /api/deals/:id` - Single deal
+- `POST /api/deals` - Create deal (admin)
+- `PUT /api/deals/:id` - Update deal (admin)
+- `DELETE /api/deals/:id` - Delete deal (admin)
+- `POST /api/subscribers` - Subscribe to alerts
 
 ## TypeScript & Composite Projects
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root** — run `pnpm run typecheck`
+- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck
 
 ## Root Scripts
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
+- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `pnpm --filter @workspace/api-spec run codegen` — regenerates API client + Zod schemas
+- `pnpm --filter @workspace/db run push` — push DB schema changes
+- `pnpm --filter @workspace/scripts run seed-deals` — seed sample deals
 
-## Packages
+## Development
 
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- API server: `pnpm --filter @workspace/api-server run dev` (runs on PORT env var, mapped to /api)
+- Frontend: `pnpm --filter @workspace/lease-steals run dev` (runs on PORT env var, served at /)
