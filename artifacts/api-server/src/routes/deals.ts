@@ -9,6 +9,7 @@ import {
   DeleteDealParams,
 } from "@workspace/api-zod";
 import { eq, and, lte, ilike, desc, asc, count, sql } from "drizzle-orm";
+import { requireAdminKey } from "../middlewares/admin-auth";
 
 const router: IRouter = Router();
 
@@ -134,7 +135,7 @@ router.get("/deals/:id", async (req, res) => {
   res.json(formatDeal(deal));
 });
 
-router.post("/deals", async (req, res) => {
+router.post("/deals", requireAdminKey, async (req, res) => {
   const parsed = CreateDealBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "validation_error", message: parsed.error.message });
@@ -167,7 +168,7 @@ router.post("/deals", async (req, res) => {
   res.status(201).json(formatDeal(deal));
 });
 
-router.put("/deals/:id", async (req, res) => {
+router.put("/deals/:id", requireAdminKey, async (req, res) => {
   const paramsParsed = UpdateDealParams.safeParse(req.params);
   if (!paramsParsed.success) {
     res.status(400).json({ error: "validation_error", message: paramsParsed.error.message });
@@ -219,7 +220,7 @@ router.put("/deals/:id", async (req, res) => {
   res.json(formatDeal(updated));
 });
 
-router.delete("/deals/:id", async (req, res) => {
+router.delete("/deals/:id", requireAdminKey, async (req, res) => {
   const parsed = DeleteDealParams.safeParse(req.params);
   if (!parsed.success) {
     res.status(400).json({ error: "validation_error", message: parsed.error.message });

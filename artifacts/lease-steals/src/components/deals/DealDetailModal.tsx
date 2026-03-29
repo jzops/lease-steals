@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Deal } from "@workspace/api-client-react"
 import { formatCurrency } from "@/lib/utils"
-import { Zap, Calendar, MapPin, Gauge, DollarSign, Tag, ExternalLink } from "lucide-react"
+import { Zap, Calendar, MapPin, Gauge, Tag, ExternalLink, Share2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface DealDetailModalProps {
   deal: Deal | null
@@ -12,7 +13,23 @@ interface DealDetailModalProps {
 }
 
 export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalProps) {
+  const { toast } = useToast()
+
   if (!deal) return null
+
+  const handleShare = async () => {
+    const text = `Check out this ${deal.year} ${deal.make} ${deal.model} lease deal — only ${formatCurrency(deal.monthlyPayment)}/mo${deal.moneyDown === 0 ? " with $0 down" : ""}! 🔥 via LeaseSteals`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${deal.year} ${deal.make} ${deal.model} Lease Deal`, text, url: window.location.href })
+      } catch {
+        // user cancelled
+      }
+    } else {
+      await navigator.clipboard.writeText(`${text}\n${window.location.href}`)
+      toast({ description: "Deal link copied to clipboard!" })
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,6 +131,9 @@ export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalPro
                 Deal Source Unavailable
               </Button>
             )}
+            <Button variant="outline" size="lg" onClick={handleShare} className="gap-2">
+              <Share2 className="h-4 w-4" /> Share
+            </Button>
           </div>
         </div>
       </DialogContent>

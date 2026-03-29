@@ -24,3 +24,9 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+ADMIN_API_KEY = "6e3286fc42d54a4af3b845b3156a68465269392e10fb52e50dc3a6f90ac586be"
+VITE_ADMIN_API_KEY = "6e3286fc42d54a4af3b845b3156a68465269392e10fb52e50dc3a6f90ac586be"

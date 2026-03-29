@@ -53,7 +53,11 @@ export default function Admin() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null)
 
   const { data, isLoading } = useListDeals({ limit: 100 })
-  
+
+  const adminRequestOptions = {
+    headers: { "x-admin-key": import.meta.env.VITE_ADMIN_API_KEY ?? "" },
+  }
+
   const createMutation = useCreateDeal({
     mutation: {
       onSuccess: () => {
@@ -61,7 +65,8 @@ export default function Admin() {
         toast({ title: "Deal created", variant: "success" })
         setIsDialogOpen(false)
       }
-    }
+    },
+    request: adminRequestOptions,
   })
 
   const updateMutation = useUpdateDeal({
@@ -71,7 +76,8 @@ export default function Admin() {
         toast({ title: "Deal updated", variant: "success" })
         setIsDialogOpen(false)
       }
-    }
+    },
+    request: adminRequestOptions,
   })
 
   const deleteMutation = useDeleteDeal({
@@ -80,7 +86,8 @@ export default function Admin() {
         queryClient.invalidateQueries({ queryKey: getListDealsQueryKey() })
         toast({ title: "Deal deleted" })
       }
-    }
+    },
+    request: adminRequestOptions,
   })
 
   const form = useForm<FormData>({
@@ -108,12 +115,21 @@ export default function Admin() {
   const openEdit = (deal: Deal) => {
     setEditingDeal(deal)
     form.reset({
-      ...deal,
+      make: deal.make,
+      model: deal.model,
+      year: deal.year,
+      carType: deal.carType as CreateDealRequestCarType,
+      msrp: deal.msrp,
+      monthlyPayment: deal.monthlyPayment,
+      moneyDown: deal.moneyDown,
+      termMonths: deal.termMonths,
+      mileageLimit: deal.mileageLimit,
+      region: deal.region,
       imageUrl: deal.imageUrl || "",
       sourceUrl: deal.sourceUrl || "",
       trimLevel: deal.trimLevel || "",
       description: deal.description || "",
-    } as any)
+    })
     setIsDialogOpen(true)
   }
 
