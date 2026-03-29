@@ -111,7 +111,7 @@ export function DealCard({ deal, onClick }: DealCardProps) {
             </div>
             <div className="flex flex-col gap-1 bg-secondary/50 rounded-lg p-2.5 border border-border/50">
               <span className="text-xs text-muted-foreground font-semibold">Terms</span>
-              <span className="text-sm font-bold">{deal.termMonths}mo / {deal.mileageLimit}k mi</span>
+              <span className="text-sm font-bold">{deal.termMonths}mo / {deal.mileageLimit.toLocaleString()} mi/yr</span>
             </div>
           </div>
 

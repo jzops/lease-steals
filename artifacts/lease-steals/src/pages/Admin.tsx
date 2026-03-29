@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -376,6 +376,12 @@ function AdminPanel({ adminKey }: { adminKey: string }) {
 
 export default function Admin() {
   const [adminKey, setAdminKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    const prev = document.title
+    document.title = "Admin — LeaseSteals"
+    return () => { document.title = prev }
+  }, [])
 
   if (!adminKey) {
     return <AdminLogin onUnlock={setAdminKey} />

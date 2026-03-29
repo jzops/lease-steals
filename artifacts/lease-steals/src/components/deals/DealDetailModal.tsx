@@ -103,7 +103,7 @@ export function DealDetailModal({ deal, open, onOpenChange }: DealDetailModalPro
               <div className="flex items-center gap-1.5 text-muted-foreground text-sm font-semibold">
                 <Gauge className="h-4 w-4" /> Mileage
               </div>
-              <span className="font-bold">{deal.mileageLimit}k / year</span>
+              <span className="font-bold">{deal.mileageLimit.toLocaleString()} mi/yr</span>
             </div>
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-1.5 text-muted-foreground text-sm font-semibold">
