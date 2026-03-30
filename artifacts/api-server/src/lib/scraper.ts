@@ -6,7 +6,16 @@ import { isNotNull } from "drizzle-orm";
 const FORUM_BASE = "https://forum.leasehackr.com";
 const CATEGORY_SLUG = "deals-and-tips";
 const CATEGORY_ID = 6;
-const PAGES_TO_SCRAPE = 3;
+const PAGES_TO_SCRAPE = 10;
+
+// State keywords to run targeted searches for regional deal coverage
+const STATE_KEYWORDS = [
+  "Arizona", "AZ", "California", "SoCal", "NorCal", "Texas", "Florida",
+  "New York", "New Jersey", "Illinois", "Chicago", "Washington", "Colorado",
+  "Nevada", "Georgia", "North Carolina", "Virginia", "Massachusetts",
+  "Minnesota", "Oregon", "Utah", "Ohio", "Michigan", "Pennsylvania",
+  "Maryland", "Tennessee", "Indiana", "Missouri", "Wisconsin", "Oklahoma",
+];
 
 const MAKE_ALIASES: Record<string, string> = {
   bmw: "BMW",
@@ -325,6 +334,21 @@ async function fetchCategoryPage(page: number): Promise<ForumTopic[]> {
   return topics.filter((t) => /^(SIGNED|Signed):/i.test(t.title));
 }
 
+async function searchForumByKeyword(keyword: string): Promise<ForumTopic[]> {
+  const q = encodeURIComponent(`"${keyword}" #${CATEGORY_SLUG}`);
+  const url = `${FORUM_BASE}/search.json?q=${q}`;
+  try {
+    const resp = await axios.get(url, {
+      headers: { "User-Agent": "LeaseStealsBot/1.0 (+https://leasesteals.io)" },
+      timeout: 15000,
+    });
+    const topics: ForumTopic[] = resp.data?.topics ?? [];
+    return topics.filter((t) => /^(SIGNED|Signed):/i.test(t.title));
+  } catch {
+    return [];
+  }
+}
+
 async function fetchTopicDescription(topicId: number, slug: string): Promise<string | null> {
   try {
     const url = `${FORUM_BASE}/t/${slug}/${topicId}.json`;
@@ -347,6 +371,78 @@ export interface ScrapeResult {
   errors: string[];
 }
 
+async function processTopics(
+  topics: ForumTopic[],
+  existingUrls: Set<string>,
+  summary: ScrapeResult
+): Promise<void> {
+  for (const topic of topics) {
+    const sourceUrl = `${FORUM_BASE}/t/${topic.slug}/${topic.id}`;
+
+    if (existingUrls.has(sourceUrl)) {
+      summary.skipped++;
+      continue;
+    }
+
+    const parsed = parseTitle(topic.title);
+    if (!parsed || !parsed.monthlyPayment) {
+      summary.skipped++;
+      continue;
+    }
+
+    const msrp = parsed.msrp ?? parsed.monthlyPayment * 120;
+
+    // Sanity-check: reject clearly bad parses before they hit the DB
+    if (msrp < 12000 || msrp > 600000) {
+      summary.errors.push(`Skipping "${topic.title}": MSRP $${msrp} out of range`);
+      summary.skipped++;
+      continue;
+    }
+    const dealScore = (parsed.monthlyPayment / msrp) * 100;
+    if (dealScore < 0.15 || dealScore > 4.0) {
+      summary.errors.push(`Skipping "${topic.title}": deal score ${dealScore.toFixed(2)}% implausible`);
+      summary.skipped++;
+      continue;
+    }
+    if (parsed.monthlyPayment < 50 || parsed.monthlyPayment > 10000) {
+      summary.errors.push(`Skipping "${topic.title}": monthly $${parsed.monthlyPayment} out of range`);
+      summary.skipped++;
+      continue;
+    }
+
+    let description: string | null = null;
+    try {
+      description = await fetchTopicDescription(topic.id, topic.slug);
+    } catch {
+      // best-effort
+    }
+
+    try {
+      await db.insert(leaseDealsTable).values({
+        make: parsed.make,
+        model: parsed.model,
+        year: parsed.year,
+        carType: parsed.carType,
+        msrp: String(msrp),
+        monthlyPayment: String(parsed.monthlyPayment),
+        moneyDown: String(parsed.moneyDown),
+        termMonths: parsed.termMonths ?? 36,
+        mileageLimit: parsed.mileageLimit ?? 10000,
+        region: parsed.region,
+        sourceUrl,
+        trimLevel: parsed.trimLevel ?? null,
+        description: description ?? null,
+        imageUrl: null,
+      });
+      existingUrls.add(sourceUrl);
+      summary.imported++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      summary.errors.push(`Insert failed for "${topic.title}": ${msg}`);
+    }
+  }
+}
+
 export async function scrapeAndUpsert(): Promise<ScrapeResult> {
   const summary: ScrapeResult = { imported: 0, skipped: 0, errors: [] };
 
@@ -359,6 +455,7 @@ export async function scrapeAndUpsert(): Promise<ScrapeResult> {
     existing.map((r) => r.sourceUrl).filter(Boolean) as string[]
   );
 
+  // Phase 1: General category pages (most recent signed deals)
   for (let page = 0; page < PAGES_TO_SCRAPE; page++) {
     let topics: ForumTopic[];
     try {
@@ -368,75 +465,22 @@ export async function scrapeAndUpsert(): Promise<ScrapeResult> {
       summary.errors.push(`Failed to fetch page ${page}: ${msg}`);
       continue;
     }
-
-    for (const topic of topics) {
-      const sourceUrl = `${FORUM_BASE}/t/${topic.slug}/${topic.id}`;
-
-      if (existingUrls.has(sourceUrl)) {
-        summary.skipped++;
-        continue;
-      }
-
-      const parsed = parseTitle(topic.title);
-      if (!parsed || !parsed.monthlyPayment) {
-        summary.skipped++;
-        continue;
-      }
-
-      let description: string | null = null;
-      try {
-        description = await fetchTopicDescription(topic.id, topic.slug);
-      } catch {
-      }
-
-      const msrp = parsed.msrp ?? parsed.monthlyPayment * 120;
-
-      // Sanity-check: reject clearly bad parses before they hit the DB
-      if (msrp < 12000 || msrp > 600000) {
-        summary.errors.push(`Skipping "${topic.title}": MSRP $${msrp} is out of valid range`);
-        summary.skipped++;
-        continue;
-      }
-      const dealScore = (parsed.monthlyPayment / msrp) * 100;
-      if (dealScore < 0.15 || dealScore > 4.0) {
-        summary.errors.push(`Skipping "${topic.title}": deal score ${dealScore.toFixed(2)}% is implausible`);
-        summary.skipped++;
-        continue;
-      }
-      if (parsed.monthlyPayment < 50 || parsed.monthlyPayment > 10000) {
-        summary.errors.push(`Skipping "${topic.title}": monthly $${parsed.monthlyPayment} is out of range`);
-        summary.skipped++;
-        continue;
-      }
-
-      try {
-        await db.insert(leaseDealsTable).values({
-          make: parsed.make,
-          model: parsed.model,
-          year: parsed.year,
-          carType: parsed.carType,
-          msrp: String(msrp),
-          monthlyPayment: String(parsed.monthlyPayment),
-          moneyDown: String(parsed.moneyDown),
-          termMonths: parsed.termMonths ?? 36,
-          mileageLimit: parsed.mileageLimit ?? 10000,
-          region: parsed.region,
-          sourceUrl,
-          trimLevel: parsed.trimLevel ?? null,
-          description: description ?? null,
-          imageUrl: null,
-        });
-
-        existingUrls.add(sourceUrl);
-        summary.imported++;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        summary.errors.push(`Insert failed for "${topic.title}": ${msg}`);
-      }
-    }
-
+    await processTopics(topics, existingUrls, summary);
     if (page < PAGES_TO_SCRAPE - 1) {
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+
+  // Phase 2: State-targeted keyword searches — finds regional deals
+  // that the general feed misses (e.g. "Signed: 2025 Honda Civic Arizona")
+  for (const keyword of STATE_KEYWORDS) {
+    try {
+      const topics = await searchForumByKeyword(keyword);
+      await processTopics(topics, existingUrls, summary);
+      await new Promise((r) => setTimeout(r, 300));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      summary.errors.push(`State search failed for "${keyword}": ${msg}`);
     }
   }
 
