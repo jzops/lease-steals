@@ -391,6 +391,24 @@ export async function scrapeAndUpsert(): Promise<ScrapeResult> {
 
       const msrp = parsed.msrp ?? parsed.monthlyPayment * 120;
 
+      // Sanity-check: reject clearly bad parses before they hit the DB
+      if (msrp < 12000 || msrp > 600000) {
+        summary.errors.push(`Skipping "${topic.title}": MSRP $${msrp} is out of valid range`);
+        summary.skipped++;
+        continue;
+      }
+      const dealScore = (parsed.monthlyPayment / msrp) * 100;
+      if (dealScore < 0.15 || dealScore > 4.0) {
+        summary.errors.push(`Skipping "${topic.title}": deal score ${dealScore.toFixed(2)}% is implausible`);
+        summary.skipped++;
+        continue;
+      }
+      if (parsed.monthlyPayment < 50 || parsed.monthlyPayment > 10000) {
+        summary.errors.push(`Skipping "${topic.title}": monthly $${parsed.monthlyPayment} is out of range`);
+        summary.skipped++;
+        continue;
+      }
+
       try {
         await db.insert(leaseDealsTable).values({
           make: parsed.make,

@@ -5,15 +5,25 @@ import { DealCard } from "@/components/deals/DealCard"
 import { DealDetailModal } from "@/components/deals/DealDetailModal"
 import { FilterBar } from "@/components/deals/FilterBar"
 import { TradeInPanel, TradeInInfo } from "@/components/deals/TradeInPanel"
+import { ZipGate } from "@/components/ZipGate"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { Mail, Loader2, Zap, Car, ArrowLeftRight } from "lucide-react"
+import { Mail, Loader2, Zap, Car, ArrowLeftRight, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { isRegionVisibleForZip, getStateNameFromZip } from "@/lib/zip-region"
 
 export default function Home() {
   const { toast } = useToast()
+
+  // ZIP state — restored from localStorage immediately
+  const [userZip, setUserZip] = useState<string | null>(() =>
+    localStorage.getItem("leasesteals_zip")
+  )
+  const [showZipGate, setShowZipGate] = useState<boolean>(() =>
+    !localStorage.getItem("leasesteals_zip")
+  )
 
   // Filter State
   const [filters, setFilters] = useState<{
@@ -32,7 +42,7 @@ export default function Home() {
 
   // Fetch Deals
   const { data, isLoading, error } = useListDeals({
-    limit: 50,
+    limit: 100,
     page: 1,
     brand: filters.brand,
     carType: filters.carType as ListDealsCarType,
@@ -41,7 +51,12 @@ export default function Home() {
     sortOrder: filters.sortBy === "created_at" ? ListDealsSortOrder.desc : ListDealsSortOrder.asc,
   })
 
-  // Restore trade-in from URL on first load (independent of deals)
+  // Filter deals by ZIP region
+  const visibleDeals = userZip && data?.deals
+    ? data.deals.filter((d) => isRegionVisibleForZip(d.region, userZip))
+    : (data?.deals ?? [])
+
+  // Restore trade-in from URL on first load
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const vin = params.get("vin")
@@ -72,7 +87,6 @@ export default function Home() {
   // Sync trade-in info to URL for shareability
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-
     if (tradeIn && tradeIn.marketValue > 0) {
       params.set("vin", tradeIn.vin)
       params.set("mv", String(tradeIn.marketValue))
@@ -84,7 +98,6 @@ export default function Home() {
       params.delete("po")
       params.delete("tveh")
     }
-
     const newSearch = params.toString()
     const newUrl = `${window.location.pathname}${newSearch ? "?" + newSearch : ""}`
     window.history.replaceState(null, "", newUrl)
@@ -118,8 +131,22 @@ export default function Home() {
     if (tradeInMode) setTradeIn(null)
   }
 
+  const handleZipConfirmed = (zip: string) => {
+    setUserZip(zip)
+    setShowZipGate(false)
+  }
+
+  const stateName = userZip ? getStateNameFromZip(userZip) : null
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
+      {/* ZIP Gate overlay */}
+      <AnimatePresence>
+        {showZipGate && (
+          <ZipGate onZipConfirmed={handleZipConfirmed} />
+        )}
+      </AnimatePresence>
+
       <Navbar />
 
       {/* Hero Section */}
@@ -166,6 +193,25 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 -mt-8 relative z-20">
+        {/* Location bar */}
+        {userZip && (
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 text-primary" />
+              <span>
+                Showing deals for <span className="font-semibold text-foreground">{userZip}{stateName ? ` · ${stateName}` : ""}</span>
+                <span className="ml-1">({visibleDeals.length} available)</span>
+              </span>
+            </div>
+            <button
+              onClick={() => setShowZipGate(true)}
+              className="text-xs text-primary hover:underline font-medium"
+            >
+              Change ZIP
+            </button>
+          </div>
+        )}
+
         <FilterBar filters={filters} onFilterChange={handleFilterChange} />
 
         {/* Trade-In Mode Toggle */}
@@ -241,14 +287,19 @@ export default function Home() {
             <div className="text-center py-20 text-destructive">
               Failed to load deals. Please try again later.
             </div>
-          ) : data?.deals.length === 0 ? (
+          ) : visibleDeals.length === 0 ? (
             <div className="text-center py-20">
-              <h3 className="text-xl font-bold mb-2">No deals found</h3>
-              <p className="text-muted-foreground">Try adjusting your filters to see more results.</p>
+              <h3 className="text-xl font-bold mb-2">No deals in your area yet</h3>
+              <p className="text-muted-foreground mb-4">
+                We don't have any deals for {userZip} right now — the scraper runs nightly and we're still growing coverage.
+              </p>
+              <Button variant="outline" onClick={() => setShowZipGate(true)}>
+                Try a Different ZIP
+              </Button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {data?.deals.map((deal) => (
+              {visibleDeals.map((deal) => (
                 <DealCard
                   key={deal.id}
                   deal={deal}
