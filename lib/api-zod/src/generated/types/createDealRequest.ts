@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CreateDealRequestCarType } from "./createDealRequestCarType";
+import type { CreateDealRequestSourceType } from "./createDealRequestSourceType";
+import type { CreateDealRequestStatus } from "./createDealRequestStatus";
 
 export interface CreateDealRequest {
   make: string;
@@ -18,6 +20,13 @@ export interface CreateDealRequest {
   termMonths: number;
   mileageLimit: number;
   region: string;
+  state?: string | null;
+  zipOrigin?: string | null;
+  sourceType?: CreateDealRequestSourceType;
+  status?: CreateDealRequestStatus;
+  effectiveThrough?: Date | null;
+  moneyFactor?: number | null;
+  residualPct?: number | null;
   expiresAt?: Date | null;
   imageUrl?: string | null;
   sourceUrl?: string | null;

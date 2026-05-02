@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Mail, Loader2, Zap, Car, ArrowLeftRight, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
-import { isRegionVisibleForZip, getStateNameFromZip } from "@/lib/zip-region"
+import { getStateFromZip, getStateNameFromZip } from "@/lib/zip-region"
 
 export default function Home() {
   const { toast } = useToast()
@@ -40,21 +40,23 @@ export default function Home() {
   const [tradeInMode, setTradeInMode] = useState(false)
   const [tradeIn, setTradeIn] = useState<TradeInInfo | null>(null)
 
-  // Fetch Deals
+  // Resolve user's ZIP -> state code so the API can scope the result.
+  const userState = userZip ? getStateFromZip(userZip) : null
+
+  // Fetch Deals — state filter is now server-side: rows where state IS NULL
+  // (national) OR state = userState are returned. No client-side filtering.
   const { data, isLoading, error } = useListDeals({
     limit: 100,
     page: 1,
     brand: filters.brand,
     carType: filters.carType as ListDealsCarType,
     maxMonthly: filters.maxMonthly ? Number(filters.maxMonthly) : undefined,
+    state: userState ?? undefined,
     sortBy: (filters.sortBy as ListDealsSortBy) || ListDealsSortBy.deal_score,
     sortOrder: filters.sortBy === "created_at" ? ListDealsSortOrder.desc : ListDealsSortOrder.asc,
   })
 
-  // Filter deals by ZIP region
-  const visibleDeals = userZip && data?.deals
-    ? data.deals.filter((d) => isRegionVisibleForZip(d.region, userZip))
-    : (data?.deals ?? [])
+  const visibleDeals = data?.deals ?? []
 
   // Restore trade-in from URL on first load
   useEffect(() => {

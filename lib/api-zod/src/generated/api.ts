@@ -19,6 +19,8 @@ export const HealthCheckResponse = zod.object({
  * Returns paginated list of lease deals with optional filters
  * @summary List lease deals
  */
+export const listDealsQueryStateRegExp = new RegExp("^[A-Z]{2}$");
+export const listDealsQueryStatusDefault = `published`;
 export const listDealsQuerySortByDefault = `deal_score`;
 export const listDealsQuerySortOrderDefault = `asc`;
 export const listDealsQueryPageDefault = 1;
@@ -36,6 +38,17 @@ export const ListDealsQueryParams = zod.object({
     .number()
     .optional()
     .describe("Maximum monthly payment filter"),
+  state: zod.coerce
+    .string()
+    .regex(listDealsQueryStateRegExp)
+    .optional()
+    .describe(
+      "2-letter US state code; returns deals scoped to that state plus national deals",
+    ),
+  status: zod
+    .enum(["published", "pending", "stale", "all"])
+    .default(listDealsQueryStatusDefault)
+    .describe("Status filter; admin-only callers may pass non-default values"),
   sortBy: zod
     .enum(["deal_score", "monthly_payment", "msrp", "created_at"])
     .default(listDealsQuerySortByDefault)
@@ -86,6 +99,34 @@ export const ListDealsResponse = zod.object({
         .describe(
           'US region where deal is available (e.g. \"National\", \"SoCal\")',
         ),
+      state: zod
+        .string()
+        .nullish()
+        .describe("2-letter US state code; null means national\/all-states"),
+      zipOrigin: zod
+        .string()
+        .nullish()
+        .describe(
+          "ZIP code used to retrieve this offer (OEM\/aggregator scrapes only)",
+        ),
+      sourceType: zod
+        .enum(["oem", "aggregator", "forum", "manual"])
+        .describe("Where this deal came from"),
+      status: zod
+        .enum(["published", "pending", "stale"])
+        .describe("Whether this deal is publicly visible"),
+      verifiedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "Last time the source URL was confirmed to still list this offer",
+        ),
+      effectiveThrough: zod.coerce
+        .date()
+        .nullish()
+        .describe("Offer expiration as published by the source"),
+      moneyFactor: zod.number().nullish(),
+      residualPct: zod.number().nullish(),
       expiresAt: zod.coerce.date().nullish(),
       imageUrl: zod.string().nullish(),
       sourceUrl: zod.string().nullish(),
@@ -108,6 +149,8 @@ export const ListDealsResponse = zod.object({
  * @summary Create a new lease deal (admin)
  */
 export const createDealBodyMoneyDownDefault = 0;
+export const createDealBodySourceTypeDefault = `manual`;
+export const createDealBodyStatusDefault = `pending`;
 
 export const CreateDealBody = zod.object({
   make: zod.string(),
@@ -128,6 +171,17 @@ export const CreateDealBody = zod.object({
   termMonths: zod.number(),
   mileageLimit: zod.number(),
   region: zod.string(),
+  state: zod.string().nullish(),
+  zipOrigin: zod.string().nullish(),
+  sourceType: zod
+    .enum(["oem", "aggregator", "forum", "manual"])
+    .default(createDealBodySourceTypeDefault),
+  status: zod
+    .enum(["published", "pending", "stale"])
+    .default(createDealBodyStatusDefault),
+  effectiveThrough: zod.coerce.date().nullish(),
+  moneyFactor: zod.number().nullish(),
+  residualPct: zod.number().nullish(),
   expiresAt: zod.coerce.date().nullish(),
   imageUrl: zod.string().nullish(),
   sourceUrl: zod.string().nullish(),
@@ -174,6 +228,34 @@ export const GetDealResponse = zod.object({
     .describe(
       'US region where deal is available (e.g. \"National\", \"SoCal\")',
     ),
+  state: zod
+    .string()
+    .nullish()
+    .describe("2-letter US state code; null means national\/all-states"),
+  zipOrigin: zod
+    .string()
+    .nullish()
+    .describe(
+      "ZIP code used to retrieve this offer (OEM\/aggregator scrapes only)",
+    ),
+  sourceType: zod
+    .enum(["oem", "aggregator", "forum", "manual"])
+    .describe("Where this deal came from"),
+  status: zod
+    .enum(["published", "pending", "stale"])
+    .describe("Whether this deal is publicly visible"),
+  verifiedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Last time the source URL was confirmed to still list this offer",
+    ),
+  effectiveThrough: zod.coerce
+    .date()
+    .nullish()
+    .describe("Offer expiration as published by the source"),
+  moneyFactor: zod.number().nullish(),
+  residualPct: zod.number().nullish(),
   expiresAt: zod.coerce.date().nullish(),
   imageUrl: zod.string().nullish(),
   sourceUrl: zod.string().nullish(),
@@ -206,6 +288,13 @@ export const UpdateDealBody = zod.object({
   termMonths: zod.number().optional(),
   mileageLimit: zod.number().optional(),
   region: zod.string().optional(),
+  state: zod.string().nullish(),
+  zipOrigin: zod.string().nullish(),
+  sourceType: zod.enum(["oem", "aggregator", "forum", "manual"]).optional(),
+  status: zod.enum(["published", "pending", "stale"]).optional(),
+  effectiveThrough: zod.coerce.date().nullish(),
+  moneyFactor: zod.number().nullish(),
+  residualPct: zod.number().nullish(),
   expiresAt: zod.coerce.date().nullish(),
   imageUrl: zod.string().nullish(),
   sourceUrl: zod.string().nullish(),
@@ -245,6 +334,34 @@ export const UpdateDealResponse = zod.object({
     .describe(
       'US region where deal is available (e.g. \"National\", \"SoCal\")',
     ),
+  state: zod
+    .string()
+    .nullish()
+    .describe("2-letter US state code; null means national\/all-states"),
+  zipOrigin: zod
+    .string()
+    .nullish()
+    .describe(
+      "ZIP code used to retrieve this offer (OEM\/aggregator scrapes only)",
+    ),
+  sourceType: zod
+    .enum(["oem", "aggregator", "forum", "manual"])
+    .describe("Where this deal came from"),
+  status: zod
+    .enum(["published", "pending", "stale"])
+    .describe("Whether this deal is publicly visible"),
+  verifiedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Last time the source URL was confirmed to still list this offer",
+    ),
+  effectiveThrough: zod.coerce
+    .date()
+    .nullish()
+    .describe("Offer expiration as published by the source"),
+  moneyFactor: zod.number().nullish(),
+  residualPct: zod.number().nullish(),
   expiresAt: zod.coerce.date().nullish(),
   imageUrl: zod.string().nullish(),
   sourceUrl: zod.string().nullish(),

@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DealCarType } from "./dealCarType";
+import type { DealSourceType } from "./dealSourceType";
+import type { DealStatus } from "./dealStatus";
 
 export interface Deal {
   id: number;
@@ -31,6 +33,20 @@ export interface Deal {
   isSignAndDrive: boolean;
   /** US region where deal is available (e.g. "National", "SoCal") */
   region: string;
+  /** 2-letter US state code; null means national/all-states */
+  state?: string | null;
+  /** ZIP code used to retrieve this offer (OEM/aggregator scrapes only) */
+  zipOrigin?: string | null;
+  /** Where this deal came from */
+  sourceType: DealSourceType;
+  /** Whether this deal is publicly visible */
+  status: DealStatus;
+  /** Last time the source URL was confirmed to still list this offer */
+  verifiedAt?: Date | null;
+  /** Offer expiration as published by the source */
+  effectiveThrough?: Date | null;
+  moneyFactor?: number | null;
+  residualPct?: number | null;
   expiresAt?: Date | null;
   imageUrl?: string | null;
   sourceUrl?: string | null;

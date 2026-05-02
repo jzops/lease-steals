@@ -52,6 +52,19 @@ paths:
           schema:
             type: number
           description: Maximum monthly payment filter
+        - name: state
+          in: query
+          schema:
+            type: string
+            pattern: "^[A-Z]{2}$"
+          description: 2-letter US state code; returns deals scoped to that state plus national deals
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [published, pending, stale, all]
+            default: published
+          description: Status filter; admin-only callers may pass non-default values
         - name: sortBy
           in: query
           schema:
@@ -279,6 +292,38 @@ components:
         region:
           type: string
           description: US region where deal is available (e.g. "National", "SoCal")
+        state:
+          type: string
+          nullable: true
+          description: 2-letter US state code; null means national/all-states
+        zipOrigin:
+          type: string
+          nullable: true
+          description: ZIP code used to retrieve this offer (OEM/aggregator scrapes only)
+        sourceType:
+          type: string
+          enum: [oem, aggregator, forum, manual]
+          description: Where this deal came from
+        status:
+          type: string
+          enum: [published, pending, stale]
+          description: Whether this deal is publicly visible
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last time the source URL was confirmed to still list this offer
+        effectiveThrough:
+          type: string
+          format: date-time
+          nullable: true
+          description: Offer expiration as published by the source
+        moneyFactor:
+          type: number
+          nullable: true
+        residualPct:
+          type: number
+          nullable: true
         expiresAt:
           type: string
           format: date-time
@@ -316,6 +361,8 @@ components:
         - dealScore
         - isSignAndDrive
         - region
+        - sourceType
+        - status
         - createdAt
         - updatedAt
 
@@ -366,6 +413,30 @@ components:
           type: integer
         region:
           type: string
+        state:
+          type: string
+          nullable: true
+        zipOrigin:
+          type: string
+          nullable: true
+        sourceType:
+          type: string
+          enum: [oem, aggregator, forum, manual]
+          default: manual
+        status:
+          type: string
+          enum: [published, pending, stale]
+          default: pending
+        effectiveThrough:
+          type: string
+          format: date-time
+          nullable: true
+        moneyFactor:
+          type: number
+          nullable: true
+        residualPct:
+          type: number
+          nullable: true
         expiresAt:
           type: string
           format: date-time
@@ -417,6 +488,28 @@ components:
           type: integer
         region:
           type: string
+        state:
+          type: string
+          nullable: true
+        zipOrigin:
+          type: string
+          nullable: true
+        sourceType:
+          type: string
+          enum: [oem, aggregator, forum, manual]
+        status:
+          type: string
+          enum: [published, pending, stale]
+        effectiveThrough:
+          type: string
+          format: date-time
+          nullable: true
+        moneyFactor:
+          type: number
+          nullable: true
+        residualPct:
+          type: number
+          nullable: true
         expiresAt:
           type: string
           format: date-time

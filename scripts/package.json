@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "seed-deals": "tsx ./src/seed-deals.ts",
     "update-images": "tsx ./src/update-images.ts",
+    "backfill-state": "tsx ./src/backfill-state.ts",
     "scrape": "tsx ./src/run-scrape.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -8,6 +8,7 @@
 import type { ListDealsCarType } from "./listDealsCarType";
 import type { ListDealsSortBy } from "./listDealsSortBy";
 import type { ListDealsSortOrder } from "./listDealsSortOrder";
+import type { ListDealsStatus } from "./listDealsStatus";
 
 export type ListDealsParams = {
   /**
@@ -22,6 +23,15 @@ export type ListDealsParams = {
    * Maximum monthly payment filter
    */
   maxMonthly?: number;
+  /**
+   * 2-letter US state code; returns deals scoped to that state plus national deals
+   * @pattern ^[A-Z]{2}$
+   */
+  state?: string;
+  /**
+   * Status filter; admin-only callers may pass non-default values
+   */
+  status?: ListDealsStatus;
   /**
    * Sort field
    */

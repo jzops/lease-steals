@@ -8,7 +8,7 @@ import {
   UpdateDealBody,
   DeleteDealParams,
 } from "@workspace/api-zod";
-import { eq, and, lte, ilike, desc, asc, count, sql } from "drizzle-orm";
+import { eq, and, or, lte, ilike, desc, asc, count, sql, isNull } from "drizzle-orm";
 import { requireAdminKey } from "../middlewares/admin-auth";
 import { scrapeAndUpsert } from "../lib/scraper";
 
@@ -48,6 +48,14 @@ function formatDeal(deal: typeof leaseDealsTable.$inferSelect) {
     dealScore,
     isSignAndDrive,
     region: deal.region,
+    state: deal.state ?? null,
+    zipOrigin: deal.zipOrigin ?? null,
+    sourceType: deal.sourceType,
+    status: deal.status,
+    verifiedAt: deal.verifiedAt?.toISOString() ?? null,
+    effectiveThrough: deal.effectiveThrough?.toISOString() ?? null,
+    moneyFactor: deal.moneyFactor !== null ? Number(deal.moneyFactor) : null,
+    residualPct: deal.residualPct !== null ? Number(deal.residualPct) : null,
     expiresAt: deal.expiresAt?.toISOString() ?? null,
     imageUrl: deal.imageUrl ?? null,
     sourceUrl: deal.sourceUrl ?? null,
@@ -65,10 +73,27 @@ router.get("/deals", async (req, res) => {
     return;
   }
 
-  const { brand, carType, maxMonthly, sortBy, sortOrder, page, limit } = parsed.data;
+  const { brand, carType, maxMonthly, state, status, sortBy, sortOrder, page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
   const conditions = [];
+
+  // Status: default to "published" so anonymous public traffic only sees vetted deals.
+  // Admins (or status=all) can opt out of this filter.
+  if (!status || status !== "all") {
+    conditions.push(eq(leaseDealsTable.status, status ?? "published"));
+  }
+
+  // State scope: a row with state=NULL is a national offer, visible everywhere.
+  // A row with state=AZ is visible only when the caller asks for AZ.
+  if (state) {
+    const stateUpper = state.toUpperCase();
+    const stateCond = or(
+      isNull(leaseDealsTable.state),
+      eq(leaseDealsTable.state, stateUpper),
+    );
+    if (stateCond) conditions.push(stateCond);
+  }
 
   if (brand) {
     conditions.push(ilike(leaseDealsTable.make, `%${brand}%`));
@@ -166,6 +191,13 @@ router.post("/deals", requireAdminKey, async (req, res) => {
       termMonths: data.termMonths,
       mileageLimit: data.mileageLimit,
       region: data.region,
+      state: data.state ?? null,
+      zipOrigin: data.zipOrigin ?? null,
+      sourceType: data.sourceType ?? "manual",
+      status: data.status ?? "pending",
+      effectiveThrough: data.effectiveThrough ? new Date(data.effectiveThrough) : null,
+      moneyFactor: data.moneyFactor !== undefined && data.moneyFactor !== null ? String(data.moneyFactor) : null,
+      residualPct: data.residualPct !== undefined && data.residualPct !== null ? String(data.residualPct) : null,
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       imageUrl: data.imageUrl ?? null,
       sourceUrl: data.sourceUrl ?? null,
@@ -214,6 +246,16 @@ router.put("/deals/:id", requireAdminKey, async (req, res) => {
   if (data.termMonths !== undefined) updateData.termMonths = data.termMonths;
   if (data.mileageLimit !== undefined) updateData.mileageLimit = data.mileageLimit;
   if (data.region !== undefined) updateData.region = data.region;
+  if (data.state !== undefined) updateData.state = data.state ?? null;
+  if (data.zipOrigin !== undefined) updateData.zipOrigin = data.zipOrigin ?? null;
+  if (data.sourceType !== undefined) updateData.sourceType = data.sourceType;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.effectiveThrough !== undefined)
+    updateData.effectiveThrough = data.effectiveThrough ? new Date(data.effectiveThrough) : null;
+  if (data.moneyFactor !== undefined)
+    updateData.moneyFactor = data.moneyFactor !== null ? String(data.moneyFactor) : null;
+  if (data.residualPct !== undefined)
+    updateData.residualPct = data.residualPct !== null ? String(data.residualPct) : null;
   if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl ?? null;
   if (data.sourceUrl !== undefined) updateData.sourceUrl = data.sourceUrl ?? null;

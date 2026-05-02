@@ -151,6 +151,24 @@ function normalizeMake(rawMake: string): string {
   return MAKE_ALIASES[lower] ?? rawMake.trim();
 }
 
+const REGION_TO_STATE_CODE: Record<string, string> = {
+  arizona: "AZ", california: "CA", "southern california": "CA",
+  "northern california": "CA", texas: "TX", florida: "FL",
+  "new york": "NY", "new york city": "NY", "new jersey": "NJ",
+  illinois: "IL", washington: "WA", colorado: "CO", nevada: "NV",
+  georgia: "GA", "north carolina": "NC", virginia: "VA",
+  massachusetts: "MA", minnesota: "MN", oregon: "OR", utah: "UT",
+  ohio: "OH", michigan: "MI", pennsylvania: "PA", maryland: "MD",
+  tennessee: "TN", indiana: "IN", missouri: "MO", wisconsin: "WI",
+  oklahoma: "OK",
+};
+
+function regionToStateCode(region: string): string | null {
+  const norm = region.toLowerCase().trim();
+  if (norm === "national" || norm === "nationwide") return null;
+  return REGION_TO_STATE_CODE[norm] ?? null;
+}
+
 interface ParsedDeal {
   make: string;
   model: string;
@@ -429,6 +447,11 @@ async function processTopics(
         termMonths: parsed.termMonths ?? 36,
         mileageLimit: parsed.mileageLimit ?? 10000,
         region: parsed.region,
+        state: regionToStateCode(parsed.region),
+        sourceType: "forum",
+        // Forum posts are inherently noisy; land them as `pending` so they get
+        // human review before reaching the public list.
+        status: "pending",
         sourceUrl,
         trimLevel: parsed.trimLevel ?? null,
         description: description ?? null,

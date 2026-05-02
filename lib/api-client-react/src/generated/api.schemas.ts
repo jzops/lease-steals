@@ -21,6 +21,30 @@ export const DealCarType = {
   van: "van",
 } as const;
 
+/**
+ * Where this deal came from
+ */
+export type DealSourceType =
+  (typeof DealSourceType)[keyof typeof DealSourceType];
+
+export const DealSourceType = {
+  oem: "oem",
+  aggregator: "aggregator",
+  forum: "forum",
+  manual: "manual",
+} as const;
+
+/**
+ * Whether this deal is publicly visible
+ */
+export type DealStatus = (typeof DealStatus)[keyof typeof DealStatus];
+
+export const DealStatus = {
+  published: "published",
+  pending: "pending",
+  stale: "stale",
+} as const;
+
 export interface Deal {
   id: number;
   /** Car manufacturer (e.g. Toyota) */
@@ -45,6 +69,20 @@ export interface Deal {
   isSignAndDrive: boolean;
   /** US region where deal is available (e.g. "National", "SoCal") */
   region: string;
+  /** 2-letter US state code; null means national/all-states */
+  state?: string | null;
+  /** ZIP code used to retrieve this offer (OEM/aggregator scrapes only) */
+  zipOrigin?: string | null;
+  /** Where this deal came from */
+  sourceType: DealSourceType;
+  /** Whether this deal is publicly visible */
+  status: DealStatus;
+  /** Last time the source URL was confirmed to still list this offer */
+  verifiedAt?: string | null;
+  /** Offer expiration as published by the source */
+  effectiveThrough?: string | null;
+  moneyFactor?: number | null;
+  residualPct?: number | null;
   expiresAt?: string | null;
   imageUrl?: string | null;
   sourceUrl?: string | null;
@@ -76,6 +114,25 @@ export const CreateDealRequestCarType = {
   van: "van",
 } as const;
 
+export type CreateDealRequestSourceType =
+  (typeof CreateDealRequestSourceType)[keyof typeof CreateDealRequestSourceType];
+
+export const CreateDealRequestSourceType = {
+  oem: "oem",
+  aggregator: "aggregator",
+  forum: "forum",
+  manual: "manual",
+} as const;
+
+export type CreateDealRequestStatus =
+  (typeof CreateDealRequestStatus)[keyof typeof CreateDealRequestStatus];
+
+export const CreateDealRequestStatus = {
+  published: "published",
+  pending: "pending",
+  stale: "stale",
+} as const;
+
 export interface CreateDealRequest {
   make: string;
   model: string;
@@ -87,6 +144,13 @@ export interface CreateDealRequest {
   termMonths: number;
   mileageLimit: number;
   region: string;
+  state?: string | null;
+  zipOrigin?: string | null;
+  sourceType?: CreateDealRequestSourceType;
+  status?: CreateDealRequestStatus;
+  effectiveThrough?: string | null;
+  moneyFactor?: number | null;
+  residualPct?: number | null;
   expiresAt?: string | null;
   imageUrl?: string | null;
   sourceUrl?: string | null;
@@ -107,6 +171,25 @@ export const UpdateDealRequestCarType = {
   van: "van",
 } as const;
 
+export type UpdateDealRequestSourceType =
+  (typeof UpdateDealRequestSourceType)[keyof typeof UpdateDealRequestSourceType];
+
+export const UpdateDealRequestSourceType = {
+  oem: "oem",
+  aggregator: "aggregator",
+  forum: "forum",
+  manual: "manual",
+} as const;
+
+export type UpdateDealRequestStatus =
+  (typeof UpdateDealRequestStatus)[keyof typeof UpdateDealRequestStatus];
+
+export const UpdateDealRequestStatus = {
+  published: "published",
+  pending: "pending",
+  stale: "stale",
+} as const;
+
 export interface UpdateDealRequest {
   make?: string;
   model?: string;
@@ -118,6 +201,13 @@ export interface UpdateDealRequest {
   termMonths?: number;
   mileageLimit?: number;
   region?: string;
+  state?: string | null;
+  zipOrigin?: string | null;
+  sourceType?: UpdateDealRequestSourceType;
+  status?: UpdateDealRequestStatus;
+  effectiveThrough?: string | null;
+  moneyFactor?: number | null;
+  residualPct?: number | null;
   expiresAt?: string | null;
   imageUrl?: string | null;
   sourceUrl?: string | null;
@@ -153,6 +243,15 @@ export type ListDealsParams = {
    */
   maxMonthly?: number;
   /**
+   * 2-letter US state code; returns deals scoped to that state plus national deals
+   * @pattern ^[A-Z]{2}$
+   */
+  state?: string;
+  /**
+   * Status filter; admin-only callers may pass non-default values
+   */
+  status?: ListDealsStatus;
+  /**
    * Sort field
    */
   sortBy?: ListDealsSortBy;
@@ -182,6 +281,16 @@ export const ListDealsCarType = {
   coupe: "coupe",
   hatchback: "hatchback",
   van: "van",
+} as const;
+
+export type ListDealsStatus =
+  (typeof ListDealsStatus)[keyof typeof ListDealsStatus];
+
+export const ListDealsStatus = {
+  published: "published",
+  pending: "pending",
+  stale: "stale",
+  all: "all",
 } as const;
 
 export type ListDealsSortBy =
